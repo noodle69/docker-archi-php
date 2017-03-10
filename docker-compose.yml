@@ -1,0 +1,101 @@
+version: '2'
+
+services:
+    lb:
+        image: nginx:alpine
+        volumes:
+            - ./nginx/lb:/etc/nginx/conf.d
+        ports:
+            - "8080:80"
+        environment:
+            - TIMEOUT=190
+            - DOCKER0NET
+        depends_on:
+            - varnish1
+
+            - varnish2
+
+    varnish1:
+        build: ./varnish
+        volumes:
+            - ./varnish/web1/default.vcl:/etc/varnish/configs/default.vcl
+        ports:
+            - "8081:80"
+        depends_on:
+            - web1
+
+    varnish2:
+        build: ./varnish
+        volumes:
+            - ./varnish/web2/default.vcl:/etc/varnish/configs/default.vcl
+        ports:
+            - "8082:80"
+        depends_on:
+            - web2
+
+    web1:
+        image: nginx:alpine
+        volumes:
+            - ./nginx/web2:/etc/nginx/conf.d
+        volumes_from:
+            - app1
+        ports:
+            - "8091:80"
+        environment:
+            - FASTCGI_PASS=app:9000
+            - TIMEOUT=190
+            - DOCKER0NET
+        depends_on:
+            - app1
+
+    web2:
+        image: nginx:alpine
+        volumes:
+            - ./nginx/web1:/etc/nginx/conf.d
+        volumes_from:
+            - app2
+        ports:
+            - "8092:80"
+        environment:
+            - FASTCGI_PASS=app:9000
+            - TIMEOUT=190
+            - DOCKER0NET
+        depends_on:
+            - app2
+
+    app1:
+        build: ./php
+        volumes:
+            - ./src/app1:/var/www
+            - ./php/logs.conf:/usr/local/etc/php-fpm.d/zz-log.conf
+        ports:
+            - "9001:9000"
+        depends_on:
+            - db
+        restart: always
+
+    app2:
+        build: ./php
+        volumes:
+            - ./src/app2:/var/www
+            - ./php/logs.conf:/usr/local/etc/php-fpm.d/zz-log.conf
+        ports:
+            - "9002:9000"
+        depends_on:
+            - db
+        restart: always
+
+    db:
+        image: mariadb:10.1
+        volumes:
+            - db_data:/var/lib/mysql
+            - ./mysql:/etc/mysql/conf.d
+        restart: always
+        environment:
+            MYSQL_ROOT_PASSWORD: symfony
+            MYSQL_DATABASE: symfony
+            MYSQL_USER: symfony
+            MYSQL_PASSWORD: symfony
+
+volumes:
+    db_data:
